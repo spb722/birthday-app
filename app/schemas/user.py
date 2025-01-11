@@ -1,6 +1,7 @@
 from pydantic import BaseModel, EmailStr
 from typing import Optional
 from datetime import datetime
+from app.schemas.response import SuccessResponse
 
 class UserBase(BaseModel):
     email: EmailStr
@@ -36,28 +37,17 @@ class UserInDBBase(UserBase):
 class User(UserInDBBase):
     pass
 
-# Auth related schemas
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-class TokenData(BaseModel):
-    sub: Optional[str] = None
-
-# Response schemas
-class UserResponse(User):
+class UserResponse(SuccessResponse[User]):
     pass
 
-class AuthResponse(BaseModel):
+class AuthData(BaseModel):
     access_token: str
-    token_type: str
+    token_type: str = "bearer"
     expires_in: int
 
-class PayloadResponse(BaseModel):
-    user: UserResponse
-    auth: AuthResponse
+class PayloadData(BaseModel):
+    user: User
+    auth: AuthData
 
-class TokenResponse(BaseModel):
-    status: str
-    message: str
-    payload: PayloadResponse
+class AuthResponse(SuccessResponse[PayloadData]):
+    pass
