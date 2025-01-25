@@ -7,7 +7,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(length=255))  # Increased length
-    email = Column(String(length=255), unique=True, index=True)  # Increased length
+    email = Column(String(length=255), unique=True, index=True,nullable=True)  # Increased length
     phone = Column(String(length=20))
     profile_picture_url = Column(String(length=500))
     email_verified = Column(String(length=20), default='unverified')

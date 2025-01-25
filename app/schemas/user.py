@@ -4,7 +4,7 @@ from datetime import datetime
 from app.schemas.response import SuccessResponse
 
 class UserBase(BaseModel):
-    email: EmailStr
+    email:Optional[EmailStr] = None
     name: Optional[str] = None
     profile_picture_url: Optional[str] = None
     phone: Optional[str] = None

@@ -4,6 +4,10 @@ from fastapi.exceptions import RequestValidationError
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import Any
+# main.py
+from feature.controllers.contact_controller import router as contact_router
+
+# Add with other routers
 
 from app.core.config import settings
 from app.core.error_handler import (
@@ -22,6 +26,9 @@ from app.schemas.user import (
 from app.services.user_service import UserService
 from app.core.security import create_jwt_token
 from feature.controllers.otp_controller import router as otp_router
+from feature.controllers.friend_controller import router as friend_router
+
+# Add this with your other app.include_router calls
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -43,8 +50,22 @@ app.add_exception_handler(HTTPException, custom_http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
 # Include routers
-app.include_router(otp_router)
+app.include_router(
+    otp_router,
+    prefix=settings.API_V1_STR,
+    tags=["OTP"]
+)
 
+app.include_router(
+    contact_router,
+    prefix=settings.API_V1_STR,
+    tags=["contacts"]
+)
+app.include_router(
+    friend_router,
+    prefix=settings.API_V1_STR,
+    tags=["Friends"]
+)
 
 @app.on_event("startup")
 async def startup_event():

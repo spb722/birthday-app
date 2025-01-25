@@ -1,0 +1,49 @@
+# Contact Discovery System - Technical Documentation
+
+## Overview
+The contact discovery system enables users to find their phone contacts who are already using the birthday app. It efficiently manages contact syncing, user matching, and creates connections as new users join the platform.
+
+## Core Components
+
+### Contact Registry Model
+The system maintains a registry of all contacts in the `contact_registry` table, tracking:
+- Owner's user ID (who has this contact)
+- Contact's phone number
+- Contact name from phone
+- Registered user ID (if contact is an app user)
+- Timestamps for creation and updates
+
+### Contact Synchronization Flow
+When a user grants contact permission, the system:
+1. Receives the user's phone contacts
+2. Stores or updates contact information
+3. Identifies which contacts are registered users
+4. Returns matches for immediate connection
+5. Maintains records for future matching
+
+### Key Features
+
+#### Efficient Contact Storage
+The system stores all contacts, whether registered users or not, enabling:
+- Immediate discovery when new users join
+- Historical record of contact relationships
+- Foundation for mutual friend calculations
+
+#### Real-time User Discovery
+When someone verifies their phone number:
+- System checks the contact registry
+- Identifies users who have this number in contacts
+- Creates bidirectional connection opportunities
+- Notifies relevant users of the new join
+
+#### Privacy Considerations
+The system:
+- Only shares information about registered users
+- Maintains contact records securely
+- Enables future privacy controls and opt-outs
+
+### API Endpoints
+
+#### Contact Sync
+```http
+POST /api/v1/contacts/sync
