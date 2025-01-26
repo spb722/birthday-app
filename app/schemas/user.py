@@ -5,7 +5,9 @@ from app.schemas.response import SuccessResponse
 
 class UserBase(BaseModel):
     email:Optional[EmailStr] = None
-    name: Optional[str] = None
+    # name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     profile_picture_url: Optional[str] = None
     phone: Optional[str] = None
     email_verified: Optional[str] = "unverified"
