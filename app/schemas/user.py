@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr ,Field
 from typing import Optional
 from datetime import datetime
 from app.schemas.response import SuccessResponse
@@ -16,6 +16,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     password: Optional[str] = None
 
+
 class UserUpdate(BaseModel):
     email: Optional[EmailStr] = None
     name: Optional[str] = None
@@ -25,6 +26,8 @@ class UserUpdate(BaseModel):
     phone_verified: Optional[str] = None
     account_status: Optional[str] = None
     is_active: Optional[bool] = None
+    password: Optional[str] = Field(None, min_length=6)
+
 
 class UserInDBBase(UserBase):
     id: int

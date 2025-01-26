@@ -6,7 +6,8 @@ from datetime import datetime, timedelta
 from typing import Any
 # main.py
 from feature.controllers.contact_controller import router as contact_router
-
+# In main.py
+from app.api.endpoints.auth import router as auth_router
 # Add with other routers
 
 from app.core.config import settings
@@ -50,6 +51,12 @@ app.add_exception_handler(HTTPException, custom_http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
 # Include routers
+
+app.include_router(
+    auth_router,  # Import from auth.py
+    prefix=settings.API_V1_STR,
+    tags=["Authentication"]
+)
 app.include_router(
     otp_router,
     prefix=settings.API_V1_STR,
