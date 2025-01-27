@@ -13,7 +13,8 @@ class UserService:
     def create_user(db: Session, user_in: UserCreate) -> User:
         db_user = User(
             email=user_in.email,
-            name=user_in.name,
+            first_name=user_in.first_name,
+            last_name=user_in.last_name,
             hashed_password=get_password_hash(user_in.password) if user_in.password else None
         )
         db.add(db_user)
