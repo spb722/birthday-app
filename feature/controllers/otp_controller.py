@@ -12,7 +12,7 @@ from feature.schemas.otp_schema import (
 from app.core.error_handler import create_error_response, create_success_response
 from feature.services.otp_service import OTPService
 
-router = APIRouter(prefix="/api/v1/otp", tags=["OTP"])
+router = APIRouter(prefix="/otp", tags=["OTP"])
 otp_service = OTPService()
 
 @router.post("/generate", response_model=OTPGenerateResponse)
