@@ -83,13 +83,14 @@ class OTPService:
             user = db.query(User).filter(User.phone == phone_number).first()
 
             if not user:
-                # Create new user if doesn't exist
+                # Create new user with updated field structure
                 user = User(
                     phone=phone_number,
                     phone_verified="verified",
                     account_status="registered",
-                    email=None,  # These can be updated later
-                    name="",
+                    email=None,
+                    first_name="",  # Using first_name instead of name
+                    last_name="",  # Added last_name field
                     profile_picture_url="",
                     is_active=True
                 )
@@ -97,11 +98,13 @@ class OTPService:
                 db.commit()
                 db.refresh(user)
             else:
-                # Update existing user's phone verification status
+                # Update existing user's fields
                 user.phone_verified = "verified"
                 user.account_status = "registered"
-                if not user.name:
-                    user.name = ""
+                if not user.first_name:
+                    user.first_name = ""
+                if not user.last_name:
+                    user.last_name = ""
                 if not user.profile_picture_url:
                     user.profile_picture_url = ""
                 db.commit()
@@ -110,7 +113,7 @@ class OTPService:
             # Generate JWT token with user ID
             access_token = create_jwt_token(
                 data={"sub": str(user.id)},
-                expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)  # Fixed timedelta usage
+                expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
             )
 
             return True, "OTP verified successfully", access_token
