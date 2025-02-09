@@ -1,20 +1,12 @@
 # feature/schemas/contact_schema.py
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 from app.schemas.response import SuccessResponse
 
 class ContactInfo(BaseModel):
     name: str = Field(..., min_length=1, max_length=255)
-    phone_number: str = Field(..., pattern=r'^\+?1?\d{9,15}$', description="Phone number in E.164 format")
-
-    @field_validator('phone_number')
-    def validate_phone_number(cls, value):
-        """Validate phone number format."""
-        import re
-        if not re.match(r'^\+?1?\d{9,15}$', value):
-            raise ValueError('Invalid phone number format. Must be E.164 format.')
-        return value
+    phone_number: str
 
 class ContactSyncRequest(BaseModel):
     contacts: List[ContactInfo] = Field(..., description="List of contacts to sync")
