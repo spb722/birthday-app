@@ -16,6 +16,9 @@ class UserMatchInfo(BaseModel):
     user_id: str = Field(..., description="Matched user's ID")
     profile_picture: Optional[str] = Field(None, description="User's profile picture URL")
     mutual_friends: int = Field(default=0, description="Number of mutual connections")
+    matched_phone: str = Field(..., description="Phone number of the matched user")
+    input_phone: str = Field(..., description="Phone number provided for matching")
+    first_name: str = Field(..., description="First name of the matched user")
 
 class ContactSyncResponse(SuccessResponse[List[UserMatchInfo]]):
     """Response model for contact sync results"""
