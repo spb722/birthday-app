@@ -1,23 +1,46 @@
 # feature/controllers/friend_controller.py
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
-from typing import Optional
-from app.core.database import get_db_dependency
-from app.api.deps import get_current_user
-from app.core.error_handler import create_success_response
-from ..services.friend_service import FriendService
 from ..schemas.friend_schema import (
     FriendRequestCreate,
     BlockUserRequest,
     FriendRequestResponse,
     FriendRequestListResponse,
     BlockedUserResponse,
-    BlockedUserListResponse
+    BlockedUserListResponse,
+FriendListResponse
 )
-
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy.orm import Session
+from app.core.database import get_db_dependency
+from app.api.deps import get_current_user
+from app.core.error_handler import create_success_response
+from ..services.friend_service import FriendService
+from ..schemas.friend_schema import FriendListResponse
 router = APIRouter(tags=["friends"])
 friend_service = FriendService()
 
+
+@router.get("/friends", response_model=FriendListResponse)
+async def get_friends(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(10, ge=1, le=100),
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db_dependency)
+):
+    """
+    Get list of current user's friends
+    """
+    friends = await friend_service.get_friends(
+        db,
+        current_user.id,
+        skip,
+        limit
+    )
+
+    return create_success_response(
+        message="Friends retrieved successfully",
+        data=friends
+    )
 
 @router.post("/friends/request", response_model=FriendRequestResponse)
 async def create_friend_request(

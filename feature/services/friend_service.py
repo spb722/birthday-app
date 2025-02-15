@@ -4,7 +4,17 @@ from typing import List, Optional, Tuple
 from ..repository.friend_repository import FriendRepository
 from ..models.friend import FriendRequest, BlockedUser, FriendRequestStatus
 from app.models.user import User
-
+from sqlalchemy.orm import Session
+from typing import List, Optional, Tuple
+from ..repository.friend_repository import FriendRepository
+from ..schemas.friend_schema import (
+    FriendInfo,
+    FriendRequestInfo,
+    BlockedUserInfo,
+    FriendListResponse
+)
+from ..models.friend import FriendRequest, BlockedUser, FriendRequestStatus
+from app.models.user import User
 
 class FriendService:
     def __init__(self):
@@ -173,3 +183,26 @@ class FriendService:
         except Exception as e:
             db.rollback()
             return False, f"Error unblocking user: {str(e)}"
+
+    async def get_friends(
+            self,
+            db: Session,
+            user_id: int,
+            skip: int = 0,
+            limit: int = 10
+    ) -> List[FriendInfo]:
+        try:
+            friends = await self.repository.get_friends(db, user_id, skip, limit)
+            return [
+                FriendInfo(
+                    id=friend.id,
+                    first_name=friend.first_name,
+                    last_name=friend.last_name,
+                    profile_picture_url=friend.profile_picture_url,
+                    is_active=friend.is_active,
+                    last_seen=friend.updated_at
+                ) for friend in friends
+            ]
+        except Exception as e:
+            db.rollback()
+            raise ValueError(f"Error fetching friends: {str(e)}")

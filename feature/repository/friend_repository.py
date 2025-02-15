@@ -1,10 +1,11 @@
 # feature/repository/friend_repository.py
 from sqlalchemy.orm import Session, joinedload
+from ..models.friend import FriendRequest, BlockedUser, FriendRequestStatus
+from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from typing import List, Optional
-from ..models.friend import FriendRequest, BlockedUser, FriendRequestStatus
+from ..models.friend import FriendRequest, FriendRequestStatus
 from app.models.user import User
-
 
 class FriendRepository:
     @staticmethod
@@ -166,3 +167,32 @@ class FriendRepository:
         ).delete()
         db.commit()
         return result > 0
+
+    @staticmethod
+    async def get_friends(
+            db: Session,
+            user_id: int,
+            skip: int = 0,
+            limit: int = 10
+    ) -> List[User]:
+        # Get all accepted friend requests where the user is either the requester or receiver
+        friend_requests = db.query(FriendRequest).filter(
+            and_(
+                or_(
+                    FriendRequest.requester_id == user_id,
+                    FriendRequest.receiver_id == user_id
+                ),
+                FriendRequest.status == FriendRequestStatus.ACCEPTED
+            )
+        ).all()
+
+        # Extract friend IDs
+        friend_ids = []
+        for request in friend_requests:
+            friend_id = request.receiver_id if request.requester_id == user_id else request.requester_id
+            friend_ids.append(friend_id)
+
+        # Get friend details
+        return db.query(User).filter(
+            User.id.in_(friend_ids)
+        ).offset(skip).limit(limit).all()

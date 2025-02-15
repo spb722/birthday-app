@@ -9,7 +9,7 @@ from feature.controllers.contact_controller import router as contact_router
 # In main.py
 from app.api.endpoints.auth import router as auth_router
 # Add with other routers
-
+from feature.controllers.room_controller import   router as room_router
 from app.core.config import settings
 from app.core.error_handler import (
     custom_http_exception_handler,
@@ -56,6 +56,11 @@ app.include_router(
     auth_router,  # Import from auth.py
     prefix=settings.API_V1_STR,
     tags=["Authentication"]
+)
+app.include_router(
+    room_router,  # Import from room_controller.py
+    prefix=settings.API_V1_STR,
+    tags=["rooms"]
 )
 app.include_router(
     otp_router,

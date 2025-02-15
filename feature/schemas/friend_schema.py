@@ -1,5 +1,15 @@
 # feature/schemas/friend_schema.py
 from pydantic import BaseModel, Field
+from pydantic import BaseModel
+from typing import List, Optional
+from datetime import datetime
+from app.schemas.response import SuccessResponse
+from typing import List
+from ..repository.friend_repository import FriendRepository
+
+from app.models.user import User
+# feature/schemas/friend_schema.py
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 from app.schemas.response import SuccessResponse
@@ -8,6 +18,17 @@ class UserBasicInfo(BaseModel):
     id: int
     name: Optional[str] = None
     profile_picture_url: Optional[str] = None
+
+class FriendInfo(BaseModel):
+    id: int
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    profile_picture_url: Optional[str] = None
+    is_active: bool
+    last_seen: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
 
 class FriendRequestCreate(BaseModel):
     receiver_id: int = Field(..., description="ID of the user to send friend request to")
@@ -33,6 +54,10 @@ class FriendRequestResponse(SuccessResponse[FriendRequestInfo]):
 
 class FriendRequestListResponse(SuccessResponse[List[FriendRequestInfo]]):
     """Response model for list of friend requests"""
+    pass
+
+class FriendListResponse(SuccessResponse[List[FriendInfo]]):
+    """Response model for list of friends"""
     pass
 
 class BlockedUserInfo(BaseModel):
