@@ -64,6 +64,7 @@ class FriendRepository:
             .first()
 
     @staticmethod
+    @staticmethod
     async def get_incoming_requests(
             db: Session,
             user_id: int,
@@ -71,7 +72,7 @@ class FriendRepository:
             limit: int = 10
     ) -> List[FriendRequest]:
         return db.query(FriendRequest) \
-            .options(
+            .join(User, User.id == FriendRequest.requester_id).options(
             joinedload(FriendRequest.requester),
             joinedload(FriendRequest.receiver)
         ) \

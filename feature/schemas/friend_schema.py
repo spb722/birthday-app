@@ -16,8 +16,12 @@ from app.schemas.response import SuccessResponse
 
 class UserBasicInfo(BaseModel):
     id: int
-    name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
     profile_picture_url: Optional[str] = None
+
+    class Config:
+        from_attributes = True
 
 class FriendInfo(BaseModel):
     id: int

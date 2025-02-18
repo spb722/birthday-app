@@ -1,42 +1,53 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_, func, desc
 from datetime import datetime
-from typing import Optional, Tuple, List
-from ..models.room import Room, RoomStatus, RoomPrivacy, RoomParticipant
+from typing import Optional, Tuple, List, Dict
+from ..models.room import Room, RoomStatus, RoomPrivacy, RoomType, RoomParticipant
+from ..schemas.room_schema import (
+    RoomCreate, RoomUpdate, RoomFilter, RoomStats, PaginatedResponse
+)
 from app.models.user import User
-from sqlalchemy import and_, or_
-from ..schemas.room_schema import RoomCreate
 
 
 class RoomService:
-    @staticmethod
-    async def get_user_rooms(
-            db: Session,
-            user_id: int,
-            skip: int = 0,
-            limit: int = 10
-    ) -> List[Room]:
-        """Get all rooms owned by a user."""
-        return db.query(Room)\
-            .filter(Room.owner_id == user_id)\
-            .offset(skip)\
-            .limit(limit)\
-            .all()
-
     @staticmethod
     async def create_room(
             db: Session,
             owner_id: int,
             room_data: RoomCreate
     ) -> Tuple[bool, str, Optional[Room]]:
-        """Create a new room."""
+        """Create a new room with enhanced validation."""
         try:
+            # Check for overlapping rooms for the owner
+            overlapping = db.query(Room).filter(
+                and_(
+                    Room.owner_id == owner_id,
+                    Room.status != RoomStatus.EXPIRED,
+                    Room.is_archived == False,
+                    or_(
+                        and_(
+                            Room.activation_time <= room_data.expiration_time,
+                            Room.expiration_time >= room_data.activation_time
+                        )
+                    )
+                )
+            ).first()
+
+            if overlapping:
+                return False, "You have an overlapping room scheduled for this time period", None
+
             room = Room(
                 owner_id=owner_id,
                 room_name=room_data.room_name,
+                description=room_data.description,
+                room_type=room_data.room_type,
                 privacy_type=room_data.privacy_type,
+                max_participants=room_data.max_participants,
+                auto_approve_participants=room_data.auto_approve_participants,
                 status=RoomStatus.PENDING,
                 activation_time=room_data.activation_time,
-                expiration_time=room_data.expiration_time
+                expiration_time=room_data.expiration_time,
+                metadata=room_data.metadata or {}
             )
 
             db.add(room)
@@ -48,7 +59,8 @@ class RoomService:
                 room_id=room.id,
                 user_id=owner_id,
                 is_admin=True,
-                status="approved"
+                status="approved",
+                last_active_at=datetime.utcnow()
             )
             db.add(participant)
             db.commit()
@@ -63,69 +75,66 @@ class RoomService:
     async def list_rooms(
             db: Session,
             user_id: int,
-            room_type: str,
-            status: Optional[str] = None,
-            skip: int = 0,
-            limit: int = 10
-    ) -> List[Room]:
-        """List rooms based on filters."""
-        query = db.query(Room)
+            filter_params: RoomFilter,
+            page: int = 1,
+            page_size: int = 10
+    ) -> PaginatedResponse:
+        """List rooms with enhanced filtering and pagination."""
+        try:
+            query = db.query(Room).outerjoin(RoomParticipant)
 
-        if room_type == "my_rooms":
-            # Rooms where user is owner or participant
-            query = query.join(RoomParticipant).filter(
-                or_(
-                    Room.owner_id == user_id,
-                    RoomParticipant.user_id == user_id
-                )
-            )
-        elif room_type == "upcoming":
-            # Rooms that are:
-            # 1. Public rooms
-            # 2. Private rooms where user is invited
-            # 3. Private rooms where owner is in user's friend list
-            from ..models.friend import FriendRequest, FriendRequestStatus
+            # Base filters
+            if not filter_params.is_archived:
+                query = query.filter(Room.is_archived == False)
 
-            query = query.outerjoin(RoomParticipant).filter(
-                or_(
-                    Room.privacy_type == RoomPrivacy.PUBLIC,
-                    RoomParticipant.user_id == user_id,
-                    and_(
-                        Room.privacy_type == RoomPrivacy.PRIVATE,
-                        Room.owner_id.in_(
-                            db.query(FriendRequest.receiver_id)
-                            .filter(
-                                and_(
-                                    FriendRequest.requester_id == user_id,
-                                    FriendRequest.status == FriendRequestStatus.ACCEPTED
-                                )
-                            )
-                            .union(
-                                db.query(FriendRequest.requester_id)
-                                .filter(
-                                    and_(
-                                        FriendRequest.receiver_id == user_id,
-                                        FriendRequest.status == FriendRequestStatus.ACCEPTED
-                                    )
-                                )
-                            )
-                        )
+            # Apply room type filter
+            if filter_params.room_type:
+                query = query.filter(Room.room_type.in_(filter_params.room_type))
+
+            # Apply status filter
+            if filter_params.status:
+                query = query.filter(Room.status.in_(filter_params.status))
+
+            # Apply date range filter
+            if filter_params.from_date:
+                query = query.filter(Room.activation_time >= filter_params.from_date)
+            if filter_params.to_date:
+                query = query.filter(Room.expiration_time <= filter_params.to_date)
+
+            # Apply text search if provided
+            if filter_params.query:
+                search = f"%{filter_params.query}%"
+                query = query.filter(
+                    or_(
+                        Room.room_name.ilike(search),
+                        Room.description.ilike(search)
                     )
                 )
+
+            # Filter by owner if specified
+            if filter_params.owner_id:
+                query = query.filter(Room.owner_id == filter_params.owner_id)
+
+            # Calculate total before pagination
+            total = query.count()
+
+            # Apply pagination
+            query = query.order_by(desc(Room.created_at)) \
+                .offset((page - 1) * page_size) \
+                .limit(page_size)
+
+            rooms = query.all()
+
+            return PaginatedResponse(
+                items=rooms,
+                total=total,
+                page=page,
+                size=page_size,
+                pages=(total + page_size - 1) // page_size
             )
 
-        if status:
-            query = query.filter(Room.status == status)
-
-        return query.offset(skip).limit(limit).all()
-
-    @staticmethod
-    async def get_room_by_id(
-            db: Session,
-            room_id: str
-    ) -> Optional[Room]:
-        """Get room by ID."""
-        return db.query(Room).filter(Room.id == room_id).first()
+        except Exception as e:
+            raise ValueError(f"Error listing rooms: {str(e)}")
 
     @staticmethod
     async def join_room(
@@ -133,11 +142,28 @@ class RoomService:
             room_id: str,
             user_id: int
     ) -> Tuple[bool, str, Optional[Room]]:
-        """Request to join a room."""
+        """Request to join a room with enhanced validation."""
         try:
+            # Get room with details
             room = await RoomService.get_room_by_id(db, room_id)
             if not room:
                 return False, "Room not found", None
+
+            # Check if room is active
+            if not room.is_active():
+                return False, "Room is not active", None
+
+            # Check if room has reached maximum participants
+            if room.max_participants:
+                participant_count = db.query(RoomParticipant) \
+                    .filter(
+                    and_(
+                        RoomParticipant.room_id == room_id,
+                        RoomParticipant.status == "approved"
+                    )
+                ).count()
+                if participant_count >= room.max_participants:
+                    return False, "Room has reached maximum participants", None
 
             # Check if user is already a participant
             existing_participant = db.query(RoomParticipant).filter(
@@ -148,26 +174,71 @@ class RoomService:
             ).first()
 
             if existing_participant:
+                if existing_participant.status == "banned":
+                    return False, "You are banned from this room", None
                 return False, "Already a participant in this room", room
 
             # For private rooms, status is pending until approved
-            status = "approved" if room.privacy_type == RoomPrivacy.PUBLIC else "pending"
+            # For public rooms with auto-approve, status is approved
+            status = "approved" if (
+                    room.privacy_type == RoomPrivacy.PUBLIC and
+                    room.auto_approve_participants
+            ) else "pending"
 
+            # Create new participant
             participant = RoomParticipant(
                 room_id=room_id,
                 user_id=user_id,
                 is_admin=False,
-                status=status
+                status=status,
+                last_active_at=datetime.utcnow()
             )
             db.add(participant)
             db.commit()
 
-            return True, "Successfully joined room", room
+            # Update room's last activity
+            room.last_activity = datetime.utcnow()
+            db.commit()
+            db.refresh(room)
+
+            success_message = "Successfully joined room" if status == "approved" else \
+                "Join request sent successfully"
+            return True, success_message, room
 
         except Exception as e:
             db.rollback()
             return False, f"Error joining room: {str(e)}", None
 
+    @staticmethod
+    async def get_room_by_id(
+            db: Session,
+            room_id: str
+    ) -> Optional[Room]:
+        """Get room by ID with all relationships loaded."""
+        try:
+            room = db.query(Room) \
+                .filter(Room.id == room_id) \
+                .first()
+
+            if room:
+                # Get participant count
+                participant_count = db.query(RoomParticipant) \
+                    .filter(
+                    and_(
+                        RoomParticipant.room_id == room_id,
+                        RoomParticipant.status == "approved"
+                    )
+                ).count()
+
+                # Update last activity if accessed
+                room.last_activity = datetime.utcnow()
+                db.commit()
+
+            return room
+
+        except Exception as e:
+            db.rollback()
+            raise ValueError(f"Error fetching room: {str(e)}")
     @staticmethod
     async def update_participant(
             db: Session,
@@ -176,7 +247,7 @@ class RoomService:
             user_id: int,
             new_status: str
     ) -> Tuple[bool, str, Optional[Room]]:
-        """Update participant status."""
+        """Update individual participant status."""
         try:
             # Verify admin has permission
             admin_participant = db.query(RoomParticipant).filter(
@@ -202,9 +273,11 @@ class RoomService:
                 return False, "Participant not found", None
 
             participant.status = new_status
+            participant.updated_at = datetime.utcnow()
             db.commit()
 
-            room = await RoomService.get_room_by_id(db, room_id)
+            # Get updated room
+            room = db.query(Room).filter(Room.id == room_id).first()
             return True, "Participant status updated successfully", room
 
         except Exception as e:
@@ -212,103 +285,159 @@ class RoomService:
             return False, f"Error updating participant: {str(e)}", None
 
     @staticmethod
-    async def send_invitations(
+    async def get_room_stats(
+            db: Session,
+            room_id: str
+    ) -> Optional[RoomStats]:
+        """Get detailed room statistics."""
+        try:
+            room = db.query(Room).filter(Room.id == room_id).first()
+            if not room:
+                return None
+
+            participants = db.query(RoomParticipant) \
+                .filter(RoomParticipant.room_id == room_id)
+
+            total_participants = participants.count()
+            active_participants = participants.filter(
+                RoomParticipant.status == "approved"
+            ).count()
+            pending_requests = participants.filter(
+                RoomParticipant.status == "pending"
+            ).count()
+
+            capacity_used = (total_participants / room.max_participants * 100) \
+                if room.max_participants else 0
+
+            return RoomStats(
+                total_participants=total_participants,
+                active_participants=active_participants,
+                pending_requests=pending_requests,
+                last_activity=room.last_activity,
+                capacity_used=capacity_used
+            )
+
+        except Exception as e:
+            raise ValueError(f"Error getting room stats: {str(e)}")
+
+    @staticmethod
+    async def update_room(
             db: Session,
             room_id: str,
-            sender_id: int,
-            user_ids: List[int]
+            user_id: int,
+            update_data: RoomUpdate
     ) -> Tuple[bool, str, Optional[Room]]:
-        """Send room invitations."""
+        """Update room settings."""
         try:
-            room = await RoomService.get_room_by_id(db, room_id)
+            room = db.query(Room).filter(Room.id == room_id).first()
             if not room:
                 return False, "Room not found", None
 
-            # Verify sender has permission
-            sender_participant = db.query(RoomParticipant).filter(
+            if room.owner_id != user_id:
+                return False, "Not authorized to update this room", None
+
+            update_dict = update_data.dict(exclude_unset=True)
+            for key, value in update_dict.items():
+                setattr(room, key, value)
+
+            room.updated_at = datetime.utcnow()
+            db.commit()
+            db.refresh(room)
+
+            return True, "Room updated successfully", room
+
+        except Exception as e:
+            db.rollback()
+            return False, f"Error updating room: {str(e)}", None
+
+    @staticmethod
+    async def bulk_update_participants(
+            db: Session,
+            room_id: str,
+            admin_id: int,
+            user_ids: List[int],
+            action: str
+    ) -> Tuple[bool, str, Dict[str, int]]:
+        """Bulk update participant statuses."""
+        try:
+            # Verify admin has permission
+            admin_participant = db.query(RoomParticipant).filter(
                 and_(
                     RoomParticipant.room_id == room_id,
-                    RoomParticipant.user_id == sender_id,
+                    RoomParticipant.user_id == admin_id,
                     RoomParticipant.is_admin == True
                 )
             ).first()
 
-            if not sender_participant:
-                return False, "Not authorized to send invitations", None
+            if not admin_participant:
+                return False, "Not authorized for bulk updates", None
 
-            for user_id in user_ids:
-                existing_participant = db.query(RoomParticipant).filter(
-                    and_(
-                        RoomParticipant.room_id == room_id,
-                        RoomParticipant.user_id == user_id
-                    )
-                ).first()
-
-                if not existing_participant:
-                    participant = RoomParticipant(
-                        room_id=room_id,
-                        user_id=user_id,
-                        is_admin=False,
-                        status="pending"
-                    )
-                    db.add(participant)
+            # Update participants
+            updated = db.query(RoomParticipant).filter(
+                and_(
+                    RoomParticipant.room_id == room_id,
+                    RoomParticipant.user_id.in_(user_ids)
+                )
+            ).update(
+                {"status": action, "updated_at": datetime.utcnow()},
+                synchronize_session=False
+            )
 
             db.commit()
-            return True, "Invitations sent successfully", room
+
+            return True, f"Updated {updated} participants", {"updated_count": updated}
 
         except Exception as e:
             db.rollback()
-            return False, f"Error sending invitations: {str(e)}", None
+            return False, f"Error in bulk update: {str(e)}", None
 
     @staticmethod
-    async def handle_invitation(
+    async def archive_room(
             db: Session,
             room_id: str,
-            user_id: int,
-            status: str
+            user_id: int
     ) -> Tuple[bool, str, Optional[Room]]:
-        """Handle invitation response."""
+        """Archive a room (soft delete)."""
+        try:
+            room = db.query(Room).filter(Room.id == room_id).first()
+            if not room:
+                return False, "Room not found", None
+
+            if room.owner_id != user_id:
+                return False, "Not authorized to archive this room", None
+
+            room.is_archived = True
+            room.updated_at = datetime.utcnow()
+            db.commit()
+            db.refresh(room)
+
+            return True, "Room archived successfully", room
+
+        except Exception as e:
+            db.rollback()
+            return False, f"Error archiving room: {str(e)}", None
+
+    @staticmethod
+    async def update_participant_activity(
+            db: Session,
+            room_id: str,
+            user_id: int
+    ) -> bool:
+        """Update participant's last activity timestamp."""
         try:
             participant = db.query(RoomParticipant).filter(
                 and_(
                     RoomParticipant.room_id == room_id,
-                    RoomParticipant.user_id == user_id,
-                    RoomParticipant.status == "pending"
+                    RoomParticipant.user_id == user_id
                 )
             ).first()
 
-            if not participant:
-                return False, "Invitation not found", None
+            if participant:
+                participant.last_active_at = datetime.utcnow()
+                db.commit()
+                return True
+            return False
 
-            participant.status = status
-            db.commit()
-
-            room = await RoomService.get_room_by_id(db, room_id)
-            return True, f"Invitation {status} successfully", room
-
-        except Exception as e:
+        except Exception:
             db.rollback()
-            return False, f"Error handling invitation: {str(e)}", None
-
-    @staticmethod
-    async def delete_room(
-            db: Session,
-            room_id: str,
-            user_id: int
-    ) -> Tuple[bool, str]:
-        """Delete a room."""
-        try:
-            room = await RoomService.get_room_by_id(db, room_id)
-            if not room:
-                return False, "Room not found"
-
-            if room.owner_id != user_id:
-                return False, "Not authorized to delete this room"
-
-            db.delete(room)
-            db.commit()
-            return True, "Room deleted successfully"
-
-        except Exception as e:
-            db.rollback()
-            return False, f"Error deleting room: {str(e)}"
+            return False

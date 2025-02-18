@@ -66,7 +66,17 @@ class FriendService:
             skip: int = 0,
             limit: int = 10
     ) -> List[FriendRequest]:
-        return await self.repository.get_incoming_requests(db, user_id, skip, limit)
+        try:
+            requests = await self.repository.get_incoming_requests(db, user_id, skip, limit)
+            # Validate that requester data is loaded
+            for request in requests:
+                if not request.requester:
+                    # Log or handle missing requester
+                    print(f"Warning: Missing requester for request {request.id}")
+            return requests
+        except Exception as e:
+            db.rollback()
+            raise ValueError(f"Error fetching incoming requests: {str(e)}")
 
     async def get_outgoing_requests(
             self,

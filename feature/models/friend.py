@@ -23,9 +23,18 @@ class FriendRequest(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Add relationships
-    requester = relationship("User", foreign_keys=[requester_id], lazy="joined")
-    receiver = relationship("User", foreign_keys=[receiver_id], lazy="joined")
-
+    requester = relationship(
+        "User",
+        foreign_keys=[requester_id],
+        lazy="joined",
+        innerjoin=True  # Ensures requester always exists
+    )
+    receiver = relationship(
+        "User",
+        foreign_keys=[receiver_id],
+        lazy="joined",
+        innerjoin=True  # Ensures receiver always exists
+    )
     __table_args__ = (
         Index('idx_friend_request_users', 'requester_id', 'receiver_id'),
     )
