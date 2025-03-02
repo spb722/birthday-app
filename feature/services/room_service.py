@@ -6,10 +6,14 @@ from ..models.room import Room, RoomStatus, RoomPrivacy, RoomType, RoomParticipa
 from ..schemas.room_schema import (
     RoomCreate, RoomUpdate, RoomFilter, RoomStats, PaginatedResponse
 )
+from datetime import date, datetime
+from sqlalchemy import and_, or_, func, desc
 from app.models.user import User
-
+# Import friend models and constants
+from ..models.friend import FriendRequest, FriendRequestStatus
 
 class RoomService:
+    @staticmethod
     @staticmethod
     async def create_room(
             db: Session,
@@ -36,6 +40,20 @@ class RoomService:
             if overlapping:
                 return False, "You have an overlapping room scheduled for this time period", None
 
+            # If celebrant_id is provided, check if the celebrant exists
+            if room_data.celebrant_id:
+                celebrant_id_str = str(room_data.celebrant_id)
+                celebrant = db.query(User).filter(User.id == int(celebrant_id_str)).first()
+                if not celebrant:
+                    return False, f"Celebrant with ID {room_data.celebrant_id} not found", None
+
+                # If celebrant exists but no birthday is provided, use the celebrant's birthday
+                celebrant_birthday = room_data.celebrant_birthday
+                if celebrant_birthday is None and celebrant.date_of_birth:
+                    celebrant_birthday = celebrant.date_of_birth
+            else:
+                celebrant_birthday = room_data.celebrant_birthday
+
             room = Room(
                 owner_id=owner_id,
                 room_name=room_data.room_name,
@@ -47,7 +65,9 @@ class RoomService:
                 status=RoomStatus.PENDING,
                 activation_time=room_data.activation_time,
                 expiration_time=room_data.expiration_time,
-                metadata=room_data.metadata or {}
+                metadata=room_data.metadata or {},
+                celebrant_id=room_data.celebrant_id,
+                celebrant_birthday=celebrant_birthday
             )
 
             db.add(room)
@@ -70,6 +90,9 @@ class RoomService:
         except Exception as e:
             db.rollback()
             return False, f"Error creating room: {str(e)}", None
+
+
+
 
     @staticmethod
     async def list_rooms(
@@ -101,6 +124,12 @@ class RoomService:
             if filter_params.to_date:
                 query = query.filter(Room.expiration_time <= filter_params.to_date)
 
+            # Apply birthday date range filter
+            if filter_params.birthday_from_date:
+                query = query.filter(Room.celebrant_birthday >= filter_params.birthday_from_date)
+            if filter_params.birthday_to_date:
+                query = query.filter(Room.celebrant_birthday <= filter_params.birthday_to_date)
+
             # Apply text search if provided
             if filter_params.query:
                 search = f"%{filter_params.query}%"
@@ -114,6 +143,38 @@ class RoomService:
             # Filter by owner if specified
             if filter_params.owner_id:
                 query = query.filter(Room.owner_id == filter_params.owner_id)
+
+            # Filter by friends only if requested
+            if filter_params.friends_only:
+                # Import FriendRepository here to avoid circular imports
+                from ..repository.friend_repository import FriendRepository
+
+                # Get all accepted friend requests where the user is either the requester or receiver
+                friend_requests = db.query(FriendRequest).filter(
+                    and_(
+                        or_(
+                            FriendRequest.requester_id == user_id,
+                            FriendRequest.receiver_id == user_id
+                        ),
+                        FriendRequest.status == FriendRequestStatus.ACCEPTED
+                    )
+                ).all()
+
+                # Extract friend IDs
+                friend_ids = []
+                for request in friend_requests:
+                    friend_id = request.receiver_id if request.requester_id == user_id else request.requester_id
+                    friend_ids.append(friend_id)
+
+                # Add current user's ID to the list to also show their own rooms
+                friend_ids.append(user_id)
+
+                # Filter rooms to only show those created by friends
+                if friend_ids:
+                    query = query.filter(Room.owner_id.in_(friend_ids))
+                else:
+                    # If user has no friends, only show their own rooms
+                    query = query.filter(Room.owner_id == user_id)
 
             # Calculate total before pagination
             total = query.count()

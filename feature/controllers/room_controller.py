@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi import status  # Add this explicit import
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime,date
 from app.core.database import get_db_dependency
 from app.api.deps import get_current_user
 from app.core.error_handler import create_success_response
@@ -24,28 +24,36 @@ router = APIRouter(prefix="/rooms", tags=["rooms"])
 
 @router.post("", response_model=RoomResponse)
 async def create_room(
-    request: RoomCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db_dependency)
+        request: RoomCreate,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db_dependency)
 ):
     """Create a new room with enhanced validation."""
-    success, message, room = await RoomService.create_room(
-        db,
-        current_user.id,
-        request
-    )
-
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=message
+    try:
+        success, message, room = await RoomService.create_room(
+            db,
+            current_user.id,
+            request
         )
 
-    return create_success_response(
-        message=message,
-        data=room
-    )
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=message
+            )
 
+        # Ensure participants are loaded
+        room.participants = []  # Initialize empty list if none exist
+
+        return create_success_response(
+            message=message,
+            data=room
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Error creating room: {str(e)}"
+        )
 @router.get("", response_model=RoomListResponse)
 async def list_rooms(
     page: int = Query(1, ge=1, description="Page number"),
@@ -55,7 +63,10 @@ async def list_rooms(
     status: Optional[List[str]] = Query(None),
     from_date: Optional[datetime] = Query(None),
     to_date: Optional[datetime] = Query(None),
+    birthday_from_date: Optional[date] = Query(None, description="Filter by celebrant birthday from date"),
+    birthday_to_date: Optional[date] = Query(None, description="Filter by celebrant birthday to date"),
     is_archived: Optional[bool] = Query(False),
+    friends_only: Optional[bool] = Query(False, description="Filter to show only rooms created by friends"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_dependency)
 ):
@@ -66,7 +77,10 @@ async def list_rooms(
         status=status,
         from_date=from_date,
         to_date=to_date,
-        is_archived=is_archived
+        birthday_from_date=birthday_from_date,
+        birthday_to_date=birthday_to_date,
+        is_archived=is_archived,
+        friends_only=friends_only
     )
 
     try:

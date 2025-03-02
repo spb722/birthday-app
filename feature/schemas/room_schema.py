@@ -4,7 +4,8 @@ from datetime import datetime
 from app.schemas.response import SuccessResponse
 from ..schemas.friend_schema import UserBasicInfo
 from ..models.room import RoomStatus, RoomPrivacy, RoomType
-
+import pytz
+from datetime import datetime, timedelta,date
 # Base Schema for Room Fields
 class RoomBase(BaseModel):
     room_name: str = Field(..., min_length=1, max_length=255, description="Name of the room")
@@ -14,22 +15,47 @@ class RoomBase(BaseModel):
     max_participants: Optional[int] = Field(None, gt=0, le=1000, description="Maximum number of participants")
     auto_approve_participants: bool = Field(default=False, description="Auto approve new participants")
 
-# Create Room Request
+
 class RoomCreate(RoomBase):
-    activation_time: datetime = Field(..., description="Room activation time")
-    expiration_time: datetime = Field(..., description="Room expiration time")
-    metadata: Optional[Dict[str, Any]] = Field(default=dict(), description="Additional room metadata")
+    room_name: str = Field(..., min_length=1, max_length=255, description="Name of the room")
+    description: Optional[str] = Field(None, max_length=1000, description="Room description")
+    celebrant_id: Optional[int] = Field(None, description="ID of the celebrant (for birthday events)")
+    celebrant_birthday: Optional[date] = Field(None, description="Birthday of the celebrant")
+    room_type: RoomType = Field(default=RoomType.EVENT, description="Type of room")
+    privacy_type: RoomPrivacy = Field(default=RoomPrivacy.PRIVATE, description="Privacy setting")
+    max_participants: Optional[int] = Field(None, gt=0, le=1000, description="Maximum number of participants")
+    auto_approve_participants: bool = Field(default=False, description="Auto approve new participants")
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional room metadata")
+
+    # Make dates optional with None as default
+    activation_time: Optional[datetime] = Field(None, description="Room activation time")
+    expiration_time: Optional[datetime] = Field(None, description="Room expiration time")
+
+    @validator('activation_time', pre=True, always=True)
+    def set_activation_time(cls, v):
+        if v is None:
+            # Set to current time in UTC
+            return datetime.now(pytz.UTC)
+        if not v.tzinfo:
+            return pytz.UTC.localize(v)
+        return v
+
+    @validator('expiration_time', pre=True, always=True)
+    def set_expiration_time(cls, v, values):
+        if v is None:
+            # Get activation time or current time
+            start_time = values.get('activation_time', datetime.now(pytz.UTC))
+            # Add 6 months
+            return start_time + timedelta(days=180)
+        if not v.tzinfo:
+            return pytz.UTC.localize(v)
+        return v
 
     @validator('expiration_time')
     def validate_expiration_time(cls, v, values):
-        if 'activation_time' in values and v <= values['activation_time']:
+        activation_time = values.get('activation_time')
+        if activation_time and v <= activation_time:
             raise ValueError('Expiration time must be after activation time')
-        return v
-
-    @validator('activation_time')
-    def validate_activation_time(cls, v):
-        if v <= datetime.utcnow():
-            raise ValueError('Activation time must be in the future')
         return v
 
 # Update Room Request
@@ -79,16 +105,20 @@ class RoomInfo(BaseModel):
     last_activity: Optional[datetime]
     created_at: datetime
     updated_at: Optional[datetime]
-    metadata: Dict[str, Any]
-    participants: List[RoomParticipantInfo]
-    participant_count: int
+    room_metadata: Dict[str, Any]
+    participants: List[RoomParticipantInfo] = []  # Set default empty list
+    participant_count: Optional[int] = 0  # Make optional with default 0
 
     class Config:
         from_attributes = True
 
     @validator('participant_count', pre=True, always=True)
-    def set_participant_count(cls, v, values):
-        return len(values.get('participants', []))
+    def compute_participant_count(cls, v, values):
+        # If participants list exists, use its length
+        if 'participants' in values:
+            return len(values.get('participants', []))
+        # Otherwise return 0 or the existing value
+        return v or 0
 
 # Room Stats Schema
 class RoomStats(BaseModel):
@@ -127,5 +157,8 @@ class RoomFilter(BaseModel):
     status: Optional[List[RoomStatus]] = None
     from_date: Optional[datetime] = None
     to_date: Optional[datetime] = None
+    birthday_from_date: Optional[date] = None
+    birthday_to_date: Optional[date] = None
     owner_id: Optional[int] = None
     is_archived: Optional[bool] = None
+    friends_only: Optional[bool] = Field(False, description="Filter to show only rooms created by friends")

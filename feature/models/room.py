@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, String, Integer, DateTime, Boolean,
-    ForeignKey, Enum as SQLEnum, JSON, Index
+    ForeignKey, Enum as SQLEnum, JSON, Index, Date
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -33,7 +33,8 @@ class Room(Base):
     # Primary Key and Relations
     id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
     owner_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-
+    celebrant_id = Column(String(36), index=True)
+    celebrant_birthday = Column(Date, nullable=True)
     # Basic Information
     room_name = Column(String(255), nullable=False)
     description = Column(String(1000))
