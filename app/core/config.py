@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # Security
     SECRET_KEY: str = Field(default="your-secret-key-here")
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 43200
 
     # Database
     DATABASE_URL: str = Field(default=os.getenv("DATABASE_URL"))
