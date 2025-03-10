@@ -14,7 +14,6 @@ from ..models.friend import FriendRequest, FriendRequestStatus
 
 class RoomService:
     @staticmethod
-    @staticmethod
     async def create_room(
             db: Session,
             owner_id: int,
@@ -39,6 +38,25 @@ class RoomService:
 
             if overlapping:
                 return False, "You have an overlapping room scheduled for this time period", None
+
+            # Check if celebrant_id and owner_id are the same
+            if room_data.celebrant_id and str(room_data.celebrant_id) == str(owner_id):
+                # Check if user already has a room where they are both owner and celebrant
+                existing_room = db.query(Room).filter(
+                    and_(
+                        Room.owner_id == owner_id,
+                        Room.celebrant_id == str(owner_id),
+                        Room.status != RoomStatus.EXPIRED,
+                        Room.is_archived == False
+                    )
+                ).first()
+
+                if existing_room:
+                    return False, "You can only create one room where you are both the owner and celebrant", None
+
+                # Force privacy type to be PUBLIC
+                if room_data.privacy_type != RoomPrivacy.PUBLIC:
+                    return False, "When creating a room where you are both the owner and celebrant, the room must be public", None
 
             # If celebrant_id is provided, check if the celebrant exists
             if room_data.celebrant_id:
