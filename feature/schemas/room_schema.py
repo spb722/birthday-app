@@ -162,3 +162,23 @@ class RoomFilter(BaseModel):
     owner_id: Optional[int] = None
     is_archived: Optional[bool] = None
     friends_only: Optional[bool] = Field(False, description="Filter to show only rooms created by friends")
+
+# For participant request listing
+class ParticipantInfo(BaseModel):
+    user_id: int
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    profile_picture_url: Optional[str] = None
+    joined_at: datetime
+    status: str
+
+class ParticipantPaginatedResponse(BaseModel):
+    items: List[ParticipantInfo]
+    total: int
+    page: int
+    size: int
+    pages: int
+
+class ParticipantListResponse(SuccessResponse[ParticipantPaginatedResponse]):
+    """Response model for list of participants"""
+    pass

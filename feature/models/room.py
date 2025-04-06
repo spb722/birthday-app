@@ -7,7 +7,7 @@ from sqlalchemy.sql import func
 from app.core.database import Base
 import uuid
 import enum
-
+from datetime import datetime
 
 class RoomPrivacy(str, enum.Enum):
     PUBLIC = "public"
@@ -69,7 +69,7 @@ class Room(Base):
 
     def is_active(self) -> bool:
         """Check if the room is currently active."""
-        current_time = func.now()
+        current_time = datetime.utcnow()
         return (
                 self.status == RoomStatus.ACTIVE and
                 self.activation_time <= current_time and

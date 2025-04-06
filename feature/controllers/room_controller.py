@@ -7,6 +7,7 @@ from app.core.database import get_db_dependency
 from app.api.deps import get_current_user
 from app.core.error_handler import create_success_response
 from app.models.user import User
+from app.schemas.response import SuccessResponse
 from ..services.room_service import RoomService
 from typing import Optional, List
 from fastapi import status
@@ -17,11 +18,64 @@ from ..schemas.room_schema import (
     RoomListResponse,
     RoomFilter,
     RoomStatsResponse,
-    ParticipantUpdate
+    ParticipantUpdate, RoomInvitation, ParticipantListResponse
 )
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
+
+@router.get("/invitations", response_model=RoomListResponse)
+async def get_pending_invitations(
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(10, ge=1, le=100, description="Items per page"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db_dependency)
+):
+    """Get list of rooms where the user has pending invitations."""
+    try:
+        result = await RoomService.get_pending_invitations(
+            db,
+            current_user.id,
+            page,
+            page_size
+        )
+
+        return create_success_response(
+            message="Pending invitations retrieved successfully",
+            data=result
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+@router.get("/{room_id}/join-requests", response_model=ParticipantListResponse)
+async def get_pending_join_requests(
+    room_id: str,
+    page: int = Query(1, ge=1, description="Page number"),
+    page_size: int = Query(10, ge=1, le=100, description="Items per page"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db_dependency)
+):
+    """Get a list of users who have requested to join the room."""
+    try:
+        result = await RoomService.get_pending_join_requests(
+            db,
+            room_id,
+            current_user.id,
+            page,
+            page_size
+        )
+
+        return create_success_response(
+            message="Pending join requests retrieved successfully",
+            data=result
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 @router.post("", response_model=RoomResponse)
 async def create_room(
         request: RoomCreate,
@@ -156,6 +210,58 @@ async def update_room(
         room_id,
         current_user.id,
         request
+    )
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=message
+        )
+
+    return create_success_response(
+        message=message,
+        data=room
+    )
+@router.post("/{room_id}/activate", response_model=RoomResponse)
+async def activate_room(
+    room_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db_dependency)
+):
+    """
+    Activate a room. Only the room owner can activate their room.
+    """
+    success, message, room = await RoomService.activate_room(
+        db,
+        room_id,
+        current_user.id
+    )
+
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=message
+        )
+
+    return create_success_response(
+        message=message,
+        data=room
+    )
+
+@router.post("/{room_id}/invite", response_model=RoomResponse)
+async def invite_users(
+    room_id: str,
+    invitation: RoomInvitation,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db_dependency)
+):
+    """Invite users to a room."""
+    success, message, room = await RoomService.invite_users(
+        db,
+        room_id,
+        current_user.id,
+        invitation.user_ids,
+        invitation.message
     )
 
     if not success:
