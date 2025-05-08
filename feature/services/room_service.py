@@ -22,9 +22,11 @@ class RoomService:
         """Create a new room with enhanced validation."""
         try:
             # Check for overlapping rooms for the owner
+            # Check for overlapping rooms for the same owner AND same celebrant
             overlapping = db.query(Room).filter(
                 and_(
                     Room.owner_id == owner_id,
+                    Room.celebrant_id == room_data.celebrant_id,  # Add this condition
                     Room.status != RoomStatus.EXPIRED,
                     Room.is_archived == False,
                     or_(
@@ -37,7 +39,7 @@ class RoomService:
             ).first()
 
             if overlapping:
-                return False, "You have an overlapping room scheduled for this time period", None
+                return False, "You already have a room for this celebrant during this time period", None
 
             # Check if celebrant_id and owner_id are the same
             if room_data.celebrant_id and str(room_data.celebrant_id) == str(owner_id):
