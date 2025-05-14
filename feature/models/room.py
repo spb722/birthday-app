@@ -19,6 +19,8 @@ class RoomStatus(str, enum.Enum):
     ACTIVE = "active"
     EXPIRED = "expired"
     ARCHIVED = "archived"
+    BIRTHDAY_SONG = "birthday_song"
+    HAPPY_BIRTHDAY = "happy_birthday"
 
 
 class RoomType(str, enum.Enum):

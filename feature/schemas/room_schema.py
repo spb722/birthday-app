@@ -108,7 +108,8 @@ class RoomInfo(BaseModel):
     room_metadata: Dict[str, Any]
     participants: List[RoomParticipantInfo] = []  # Set default empty list
     participant_count: Optional[int] = 0  # Make optional with default 0
-
+    celebrant_id: Optional[str] = None
+    celebrant_birthday: Optional[date] = None
     class Config:
         from_attributes = True
 
