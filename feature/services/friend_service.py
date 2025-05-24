@@ -76,7 +76,7 @@ class FriendService:
             return requests
         except Exception as e:
             db.rollback()
-            raise ValueError(f"Error fetching incoming requests: {str(e)}")
+            raise ValueError(f"Error fetching incoming requestss: {str(e)}")
 
     async def get_outgoing_requests(
             self,

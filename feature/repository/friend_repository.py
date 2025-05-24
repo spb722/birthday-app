@@ -64,7 +64,6 @@ class FriendRepository:
             .first()
 
     @staticmethod
-    @staticmethod
     async def get_incoming_requests(
             db: Session,
             user_id: int,
