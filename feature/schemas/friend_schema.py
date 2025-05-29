@@ -13,13 +13,13 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 from app.schemas.response import SuccessResponse
-
+from datetime import datetime, date
 class UserBasicInfo(BaseModel):
     id: int
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     profile_picture_url: Optional[str] = None
-
+    date_of_birth: Optional[date] = None
     class Config:
         from_attributes = True
 
@@ -29,6 +29,7 @@ class FriendInfo(BaseModel):
     last_name: Optional[str] = None
     profile_picture_url: Optional[str] = None
     is_active: bool
+    date_of_birth: Optional[date] = None
     last_seen: Optional[datetime] = None
 
     class Config:

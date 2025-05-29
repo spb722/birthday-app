@@ -209,6 +209,7 @@ class FriendService:
                     first_name=friend.first_name,
                     last_name=friend.last_name,
                     profile_picture_url=friend.profile_picture_url,
+                    date_of_birth=friend.date_of_birth,
                     is_active=friend.is_active,
                     last_seen=friend.updated_at
                 ) for friend in friends
