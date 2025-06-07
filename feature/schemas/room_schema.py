@@ -36,9 +36,27 @@ class RoomCreate(RoomBase):
         if v is None:
             # Set to current time in UTC
             return datetime.now(pytz.UTC)
-        if not v.tzinfo:
-            return pytz.UTC.localize(v)
-        return v
+
+        # Handle string datetime input
+        if isinstance(v, str):
+            try:
+                # Parse string to datetime
+                parsed_dt = datetime.fromisoformat(v.replace('Z', '+00:00'))
+                if not parsed_dt.tzinfo:
+                    return pytz.UTC.localize(parsed_dt)
+                return parsed_dt
+            except ValueError:
+                # If parsing fails, return current time
+                return datetime.now(pytz.UTC)
+
+        # Handle datetime object
+        if isinstance(v, datetime):
+            if not v.tzinfo:
+                return pytz.UTC.localize(v)
+            return v
+
+        # Default fallback
+        return datetime.now(pytz.UTC)
 
     @validator('expiration_time', pre=True, always=True)
     def set_expiration_time(cls, v, values):
@@ -47,9 +65,29 @@ class RoomCreate(RoomBase):
             start_time = values.get('activation_time', datetime.now(pytz.UTC))
             # Add 6 months
             return start_time + timedelta(days=180)
-        if not v.tzinfo:
-            return pytz.UTC.localize(v)
-        return v
+
+        # Handle string datetime input
+        if isinstance(v, str):
+            try:
+                # Parse string to datetime
+                parsed_dt = datetime.fromisoformat(v.replace('Z', '+00:00'))
+                if not parsed_dt.tzinfo:
+                    return pytz.UTC.localize(parsed_dt)
+                return parsed_dt
+            except ValueError:
+                # If parsing fails, default to 6 months from activation time
+                start_time = values.get('activation_time', datetime.now(pytz.UTC))
+                return start_time + timedelta(days=180)
+
+        # Handle datetime object
+        if isinstance(v, datetime):
+            if not v.tzinfo:
+                return pytz.UTC.localize(v)
+            return v
+
+        # Default fallback
+        start_time = values.get('activation_time', datetime.now(pytz.UTC))
+        return start_time + timedelta(days=180)
 
     @validator('expiration_time')
     def validate_expiration_time(cls, v, values):
@@ -57,6 +95,7 @@ class RoomCreate(RoomBase):
         if activation_time and v <= activation_time:
             raise ValueError('Expiration time must be after activation time')
         return v
+
 
 # Update Room Request
 class RoomUpdate(BaseModel):
