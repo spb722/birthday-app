@@ -332,6 +332,21 @@ class RoomService:
             if not filter_params.is_archived:
                 query = query.filter(Room.is_archived == False)
 
+            # Apply my_rooms filter
+            if filter_params.my_rooms:
+                # Use subquery for better performance
+                participant_subquery = db.query(RoomParticipant.room_id).filter(
+                    RoomParticipant.user_id == user_id,
+                    RoomParticipant.status.in_(["approved", "pending"])
+                ).subquery()
+                
+                query = query.filter(
+                    or_(
+                        Room.owner_id == user_id,
+                        Room.id.in_(participant_subquery)
+                    )
+                )
+
             # Apply room type filter
             if filter_params.room_type:
                 query = query.filter(Room.room_type.in_(filter_params.room_type))
@@ -397,6 +412,10 @@ class RoomService:
                 else:
                     # If user has no friends, only show their own rooms
                     query = query.filter(Room.owner_id == user_id)
+
+            # Add distinct to avoid duplicates when using joins
+            if filter_params.my_rooms or filter_params.friends_only:
+                query = query.distinct()
 
             # Calculate total before pagination
             total = query.count()

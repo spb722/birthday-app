@@ -121,6 +121,7 @@ async def list_rooms(
     birthday_to_date: Optional[date] = Query(None, description="Filter by celebrant birthday to date"),
     is_archived: Optional[bool] = Query(False),
     friends_only: Optional[bool] = Query(False, description="Filter to show only rooms created by friends"),
+    my_rooms: Optional[bool] = Query(False, description="Show only rooms where I'm owner or participant"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db_dependency)
 ):
@@ -134,7 +135,8 @@ async def list_rooms(
         birthday_from_date=birthday_from_date,
         birthday_to_date=birthday_to_date,
         is_archived=is_archived,
-        friends_only=friends_only
+        friends_only=friends_only,
+        my_rooms=my_rooms
     )
 
     try:

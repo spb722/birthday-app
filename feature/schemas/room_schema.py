@@ -202,6 +202,7 @@ class RoomFilter(BaseModel):
     owner_id: Optional[int] = None
     is_archived: Optional[bool] = None
     friends_only: Optional[bool] = Field(False, description="Filter to show only rooms created by friends")
+    my_rooms: Optional[bool] = Field(False, description="Show only rooms where I'm owner or participant")
 
 # For participant request listing
 class ParticipantInfo(BaseModel):
