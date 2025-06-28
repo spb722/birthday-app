@@ -31,6 +31,7 @@ class FriendInfo(BaseModel):
     is_active: bool
     date_of_birth: Optional[date] = None
     last_seen: Optional[datetime] = None
+    default_room_id: Optional[str] = None
 
     class Config:
         from_attributes = True

@@ -1,8 +1,10 @@
 # feature/services/friend_service.py
 from sqlalchemy.orm import Session
+from sqlalchemy import func, String
 from typing import List, Optional, Tuple
 from ..repository.friend_repository import FriendRepository
 from ..models.friend import FriendRequest, BlockedUser, FriendRequestStatus
+from ..models.room import Room, RoomPrivacy
 from app.models.user import User
 from sqlalchemy.orm import Session
 from typing import List, Optional, Tuple
@@ -202,7 +204,29 @@ class FriendService:
             limit: int = 10
     ) -> List[FriendInfo]:
         try:
+            # Get friends from repository (existing logic)
             friends = await self.repository.get_friends(db, user_id, skip, limit)
+            
+            # Extract friend IDs for batch query
+            friend_ids = [friend.id for friend in friends]
+            
+            # Batch query for all default rooms at once
+            default_rooms = db.query(
+                Room.owner_id,
+                Room.id
+            ).filter(
+                Room.owner_id.in_(friend_ids),
+                Room.celebrant_id == func.cast(Room.owner_id, String),  # owner is celebrant
+                Room.privacy_type == RoomPrivacy.PUBLIC,
+                Room.is_archived == False
+            ).all()
+            
+            # Create a mapping of user_id to default_room_id for O(1) lookup
+            default_room_map = {
+                room.owner_id: room.id for room in default_rooms
+            }
+            
+            # Build response with default room IDs
             return [
                 FriendInfo(
                     id=friend.id,
@@ -211,7 +235,8 @@ class FriendService:
                     profile_picture_url=friend.profile_picture_url,
                     date_of_birth=friend.date_of_birth,
                     is_active=friend.is_active,
-                    last_seen=friend.updated_at
+                    last_seen=friend.updated_at,
+                    default_room_id=default_room_map.get(friend.id)  # Add this field
                 ) for friend in friends
             ]
         except Exception as e:
